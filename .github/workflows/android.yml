@@ -1,0 +1,46 @@
+name: Android (AAB para a Play Store)
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+      ADMOB_BANNER: ${{ secrets.ADMOB_BANNER }}
+      ADMOB_INTER: ${{ secrets.ADMOB_INTER }}
+      ADMOB_REWARD: ${{ secrets.ADMOB_REWARD }}
+      RANK_URL: ${{ secrets.RANK_URL }}
+      FOUNDER_END: ${{ secrets.FOUNDER_END }}
+      KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Descompactar o app (envio feito pelo celular)
+        run: if [ -f app-para-github.zip ]; then unzip -o -q app-para-github.zip; fi
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: npm install
+      - run: node scripts/prepare-web.mjs
+      - run: npx cap add android
+      - run: npx capacitor-assets generate --android --iconBackgroundColor "#073d27"
+      - run: npx cap sync android
+      - run: ./scripts/prepare-android.sh
+      - name: Build AAB (Play Store)
+        working-directory: android
+        run: ./gradlew bundleRelease
+      - name: Build APK (instalar direto nos testadores)
+        working-directory: android
+        run: ./gradlew assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tranca-buraco-free-cell
+          path: |
+            android/app/build/outputs/bundle/release/*.aab
+            android/app/build/outputs/apk/release/*.apk
